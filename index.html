@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KrippLAB — Confiabilidade entre Codificadores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <style>
+    /* ── Tokens ─────────────────────────────────────────────────────────── */
+    :root {
+      --bg:          #F4F5F8;
+      --surface:     #FFFFFF;
+      --surface2:    #EDEEF3;
+      --ink:         #161B26;
+      --ink-mid:     #4A5266;
+      --ink-muted:   #7A8299;
+      --accent:      #1A6B63;
+      --accent-soft: #D2E8E6;
+      --border:      #D4D8E4;
+      --border-soft: #E8EAF0;
+      --shadow:      0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+
+      --c-h:     #1A7A52;  --c-h-bg: #E6F4ED;
+      --c-m:     #A0681E;  --c-m-bg: #FBF0DC;
+      --c-l:     #B03535;  --c-l-bg: #FAEAEA;
+      --c-n:     #7A8299;  --c-n-bg: #EDEEF3;
+
+      --badge-bin:  #1A6B63; --badge-bin-bg:  #D2E8E6;
+      --badge-num:  #2060A0; --badge-num-bg:  #D6E8F8;
+      --badge-cat:  #8A4A00; --badge-cat-bg:  #FCECD4;
+      --badge-txt:  #5A5A6A; --badge-txt-bg:  #EDEEF3;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg:#0D1117; --surface:#161B22; --surface2:#1E2430; --ink:#E2E6F0;
+        --ink-mid:#9BA5BC; --ink-muted:#5E6880; --accent:#2AA89D; --accent-soft:#1A3533;
+        --border:#30363F; --border-soft:#21272F; --shadow:0 1px 3px rgba(0,0,0,.4);
+        --c-h:#3CB87A; --c-h-bg:#0F2B1F; --c-m:#D4943A; --c-m-bg:#2B1F08;
+        --c-l:#E06060; --c-l-bg:#2B0F0F; --c-n:#5E6880; --c-n-bg:#1E2430;
+        --badge-bin:#2AA89D; --badge-bin-bg:#1A3533; --badge-num:#5090D0; --badge-num-bg:#0F1F30;
+        --badge-cat:#D4943A; --badge-cat-bg:#2B1F08; --badge-txt:#5E6880; --badge-txt-bg:#1E2430;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg:#0D1117; --surface:#161B22; --surface2:#1E2430; --ink:#E2E6F0;
+      --ink-mid:#9BA5BC; --ink-muted:#5E6880; --accent:#2AA89D; --accent-soft:#1A3533;
+      --border:#30363F; --border-soft:#21272F; --shadow:0 1px 3px rgba(0,0,0,.4);
+      --c-h:#3CB87A; --c-h-bg:#0F2B1F; --c-m:#D4943A; --c-m-bg:#2B1F08;
+      --c-l:#E06060; --c-l-bg:#2B0F0F; --c-n:#5E6880; --c-n-bg:#1E2430;
+      --badge-bin:#2AA89D; --badge-bin-bg:#1A3533; --badge-num:#5090D0; --badge-num-bg:#0F1F30;
+      --badge-cat:#D4943A; --badge-cat-bg:#2B1F08; --badge-txt:#5E6880; --badge-txt-bg:#1E2430;
+    }
+    :root[data-theme="light"] {
+      --bg:#F4F5F8; --surface:#FFFFFF; --surface2:#EDEEF3; --ink:#161B26;
+      --ink-mid:#4A5266; --ink-muted:#7A8299; --accent:#1A6B63; --accent-soft:#D2E8E6;
+      --border:#D4D8E4; --border-soft:#E8EAF0; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.05);
+      --c-h:#1A7A52; --c-h-bg:#E6F4ED; --c-m:#A0681E; --c-m-bg:#FBF0DC;
+      --c-l:#B03535; --c-l-bg:#FAEAEA; --c-n:#7A8299; --c-n-bg:#EDEEF3;
+      --badge-bin:#1A6B63; --badge-bin-bg:#D2E8E6; --badge-num:#2060A0; --badge-num-bg:#D6E8F8;
+      --badge-cat:#8A4A00; --badge-cat-bg:#FCECD4; --badge-txt:#5A5A6A; --badge-txt-bg:#EDEEF3;
+    }
+
+    /* ── Reset & Base ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); }
+    button { cursor: pointer; font-family: inherit; }
+    input[type="text"], input[type="search"] { font-family: inherit; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .app-logo {
+      font-family: Georgia, serif;
+      font-size: 1.1rem;
+      color: var(--ink);
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .app-logo:hover { opacity: 0.75; }
+    .app-logo span { color: var(--accent); }
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex: 1;
+      justify-content: center;
+    }
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--ink-muted);
+      font-size: 0.82rem;
+    }
+    .step-item.active { color: var(--ink); font-weight: 600; }
+    .step-item.done   { color: var(--accent); }
+    .step-dot {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-item.active .step-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .step-item.done   .step-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .step-line { width: 40px; height: 1.5px; background: var(--border); margin: 0 4px; }
+    .step-line.done { background: var(--accent); }
+    .theme-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.5rem;
+      color: var(--ink-muted);
+      font-size: 0.85rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .theme-btn:hover { background: var(--surface2); }
+
+    /* ── Main content ───────────────────────────────────────────────────── */
+    .step-section {
+      display: none;
+      flex: 1;
+      padding: 2rem 1.5rem 4rem;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .step-section.active { display: block; }
+
+    /* ── Step headings ──────────────────────────────────────────────────── */
+    .step-title {
+      font-family: Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: normal;
+      margin-bottom: 0.4rem;
+      color: var(--ink);
+    }
+    .step-desc { color: var(--ink-muted); font-size: 0.9rem; margin-bottom: 1.8rem; }
+
+    /* ── Drop zone ──────────────────────────────────────────────────────── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 3rem 2rem;
+      text-align: center;
+      background: var(--surface);
+      transition: border-color .15s, background .15s;
+      cursor: pointer;
+      margin-bottom: 1.5rem;
+    }
+    .dropzone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .dropzone-icon { font-size: 2.2rem; margin-bottom: 0.8rem; }
+    .dropzone-title { font-weight: 600; color: var(--ink); margin-bottom: 0.3rem; }
+    .dropzone-hint { font-size: 0.83rem; color: var(--ink-muted); line-height: 1.6; }
+    .dropzone-hint strong { color: var(--ink-mid); }
+    #file-input { display: none; }
+
+    /* ── File cards ─────────────────────────────────────────────────────── */
+    .file-cards { display: grid; gap: 0.6rem; margin-bottom: 1.5rem; }
+    .file-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      box-shadow: var(--shadow);
+    }
+    .file-card-icon { font-size: 1.2rem; flex-shrink: 0; color: var(--ink-muted); }
+    .file-card-name {
+      font-size: 0.83rem;
+      color: var(--ink-muted);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .coder-input {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.85rem;
+      background: var(--bg);
+      color: var(--ink);
+      width: 160px;
+      flex-shrink: 0;
+    }
+    .coder-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+    .coder-label { font-size: 0.75rem; color: var(--ink-muted); white-space: nowrap; }
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--ink-muted);
+      font-size: 1rem;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .remove-btn:hover { background: var(--c-l-bg); color: var(--c-l); }
+
+    /* ── Buttons ────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border: 1.5px solid transparent;
+      transition: background .12s, opacity .12s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--ink-mid);
+      border-color: var(--border);
+    }
+    .btn-ghost:hover { background: var(--surface2); }
+    .btn-row { display: flex; gap: 0.7rem; align-items: center; flex-wrap: wrap; }
+
+    /* ── Error banner ───────────────────────────────────────────────────── */
+    .error-banner {
+      background: var(--c-l-bg);
+      color: var(--c-l);
+      border: 1px solid var(--c-l);
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    /* ── Step 2 layout ──────────────────────────────────────────────────── */
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 680px) { .config-grid { grid-template-columns: 1fr; } }
+
+    .config-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .config-panel-header {
+      background: var(--surface2);
+      padding: 0.65rem 1rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--ink-mid);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .config-panel-body { padding: 0.5rem 0; max-height: 420px; overflow-y: auto; }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+      transition: background .1s;
+    }
+    .check-row:hover { background: var(--surface2); }
+    .check-row input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+    .check-label { flex: 1; font-size: 0.85rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .check-label.muted { color: var(--ink-muted); font-style: italic; }
+
+    /* ── Type badges ────────────────────────────────────────────────────── */
+    .badge {
+      font-size: 0.65rem;
+      letter-spacing: 0.04em;
+      padding: 0.08rem 0.4rem;
+      border-radius: 3px;
+      font-weight: 600;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .badge-bin  { background: var(--badge-bin-bg);  color: var(--badge-bin);  }
+    .badge-num  { background: var(--badge-num-bg);  color: var(--badge-num);  }
+    .badge-cat  { background: var(--badge-cat-bg);  color: var(--badge-cat);  }
+    .badge-txt  { background: var(--badge-txt-bg);  color: var(--badge-txt);  }
+    .badge-warn { background: var(--c-m-bg); color: var(--c-m); }
+
+    .select-links { display: flex; gap: 0.8rem; }
+    .select-link {
+      background: none; border: none;
+      font-size: 0.75rem; color: var(--accent);
+      text-decoration: underline; cursor: pointer;
+    }
+
+    .combo-count {
+      font-size: 0.8rem;
+      color: var(--ink-muted);
+      padding: 0.5rem 1rem;
+      border-top: 1px solid var(--border-soft);
+    }
+    .combo-count strong { color: var(--accent); }
+
+    /* ── Results ────────────────────────────────────────────────────────── */
+    .results-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.7rem;
+      margin-bottom: 1.5rem;
+    }
+    .results-summary {
+      font-size: 0.85rem;
+      color: var(--ink-muted);
+    }
+    .results-summary strong { color: var(--ink); }
+
+    /* Overview ranking table */
+    .section-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+    }
+    .section-block { margin-bottom: 2.5rem; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    th {
+      background: var(--surface2);
+      color: var(--ink-muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      font-weight: 600;
+      padding: 0.5rem 0.7rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th.r { text-align: right; }
+    td { padding: 0.42rem 0.7rem; border-bottom: 1px solid var(--border-soft); vertical-align: middle; }
+    td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    td.mono {
+      font-family: 'SF Mono', 'Cascadia Code', 'Courier New', monospace;
+      font-size: 0.78rem;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.row-clickable { cursor: pointer; }
+    tr.row-clickable:hover td { background: var(--accent-soft); }
+    tr.row-selected td { background: var(--accent-soft); }
+
+    .alpha-pill {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 3px;
+      font-size: 0.77rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .pill-h { background: var(--c-h-bg); color: var(--c-h); }
+    .pill-m { background: var(--c-m-bg); color: var(--c-m); }
+    .pill-l { background: var(--c-l-bg); color: var(--c-l); }
+    .pill-n { background: var(--c-n-bg); color: var(--c-n); }
+
+    /* Detail section */
+    .detail-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1.2rem;
+    }
+    .detail-selector { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+    .detail-selector label { font-size: 0.82rem; color: var(--ink-muted); white-space: nowrap; }
+    .combo-select {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.3rem 0.6rem;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 0.88rem;
+      flex: 1;
+      max-width: 340px;
+    }
+    .combo-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .detail-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.78rem;
+      color: var(--ink-mid);
+    }
+    .chip strong { color: var(--ink); }
+
+    .prev-note {
+      font-size: 0.76rem;
+      color: var(--c-m);
+      background: var(--c-m-bg);
+      border-radius: 3px;
+      padding: 0.05rem 0.35rem;
+      display: inline;
+    }
+
+    .chart-container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1.2rem;
+      position: relative;
+    }
+    .chart-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 0.7rem;
+      gap: 0.5rem;
+    }
+    .chart-title {
+      font-size: 0.78rem;
+      color: var(--ink-muted);
+      letter-spacing: 0.04em;
+    }
+    .chart-dl-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.7rem;
+      color: var(--ink-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .chart-dl-btn:hover { background: var(--surface2); color: var(--ink); }
+    #chart-kripp, #chart-bp { max-height: 2400px; }
+
+    /* ── Metric guide ───────────────────────────────────────────────────── */
+    .metric-guide {
+      margin-top: 1rem;
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 0.78rem;
+    }
+    .metric-guide summary {
+      cursor: pointer;
+      padding: 0.5rem 0.8rem;
+      color: var(--ink-muted);
+      background: var(--surface2);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      user-select: none;
+    }
+    .metric-guide summary::before { content: '▸'; font-size: 0.65rem; }
+    .metric-guide[open] summary::before { content: '▾'; }
+    .metric-guide-body {
+      padding: 0.8rem 1rem;
+      display: grid;
+      gap: 0.7rem;
+      background: var(--surface);
+    }
+    .metric-item dt {
+      font-weight: 600;
+      color: var(--ink-mid);
+      margin-bottom: 0.15rem;
+    }
+    .metric-item dd { color: var(--ink-muted); line-height: 1.5; }
+
+    /* ── Spinners / loading ─────────────────────────────────────────────── */
+    .computing-msg {
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--ink-mid);
+      font-size: 0.88rem;
+    }
+    .computing-msg.visible { display: flex; }
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ─────────────────────────────────────────────────────────── */
+    .app-footer {
+      text-align: center;
+      padding: 1.2rem 1.5rem;
+      font-size: 0.75rem;
+      color: var(--ink-muted);
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+      line-height: 1.8;
+    }
+    .app-footer a { color: var(--ink-muted); }
+    .app-footer strong { color: var(--ink-mid); }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <a class="app-logo" href="./">Kripp<span>LAB</span></a>
+    <nav class="stepper" aria-label="Progresso">
+      <div class="step-item active" id="s-dot-1">
+        <div class="step-dot">1</div>
+        <span>Upload</span>
+      </div>
+      <div class="step-line" id="s-line-1"></div>
+      <div class="step-item" id="s-dot-2">
+        <div class="step-dot">2</div>
+        <span>Configurar</span>
+      </div>
+      <div class="step-line" id="s-line-2"></div>
+      <div class="step-item" id="s-dot-3">
+        <div class="step-dot">3</div>
+        <span>Resultados</span>
+      </div>
+    </nav>
+    <button class="theme-btn" id="theme-btn" title="Alternar tema" aria-label="Alternar tema claro/escuro">🌙</button>
+  </header>
+
+  <!-- ── Step 1 — Upload ─────────────────────────────────────────────── -->
+  <section class="step-section active" id="step-upload">
+    <h1 class="step-title">Carregar planilhas dos codificadores</h1>
+    <p class="step-desc">Arraste os arquivos CSV abaixo — um arquivo por codificador. Todos devem ter os <strong>mesmos nomes de variáveis</strong> nas colunas. Após o upload, nomeie cada codificador.</p>
+
+    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Zona de upload">
+      <div class="dropzone-icon">📂</div>
+      <div class="dropzone-title">Arraste os arquivos CSV aqui</div>
+      <div class="dropzone-hint">
+        ou <strong>clique para selecionar</strong> · Formato: <strong>.csv</strong> · Mínimo: 2 codificadores
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".csv" multiple>
+
+    <div id="error-upload" class="error-banner"></div>
+    <div class="file-cards" id="file-cards"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-continue-1" disabled>Continuar →</button>
+      <span style="font-size:.8rem;color:var(--ink-muted)" id="upload-count"></span>
+    </div>
+  </section>
+
+  <!-- ── Step 2 — Configure ──────────────────────────────────────────── -->
+  <section class="step-section" id="step-config">
+    <h1 class="step-title">Selecionar variáveis e codificadores</h1>
+    <p class="step-desc">Marque as colunas que representam variáveis de codificação (desmarque IDs, datas, texto livre). O app testará automaticamente todas as combinações possíveis entre os codificadores selecionados.</p>
+
+    <div id="error-config" class="error-banner"></div>
+
+    <div class="config-grid">
+      <!-- Variables -->
+      <div class="config-panel">
+        <div class="config-panel-header">
+          Variáveis
+          <div class="select-links">
+            <button class="select-link" id="sel-all-vars">Todas</button>
+            <button class="select-link" id="sel-none-vars">Nenhuma</button>
+          </div>
+        </div>
+        <div class="config-panel-body" id="var-list"></div>
+      </div>
+
+      <!-- Coders -->
+      <div class="config-panel">
+        <div class="config-panel-header">Codificadores</div>
+        <div class="config-panel-body" id="coder-list"></div>
+        <div class="combo-count" id="combo-count"></div>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:1.2rem">
+      <button class="btn btn-ghost" id="btn-back-1">← Voltar</button>
+      <button class="btn btn-primary" id="btn-compute">Calcular →</button>
+      <div class="computing-msg" id="computing-msg">
+        <div class="spinner"></div>
+        Calculando…
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Step 3 — Results ────────────────────────────────────────────── -->
+  <section class="step-section" id="step-results">
+    <div class="results-topbar">
+      <div>
+        <h1 class="step-title" style="margin-bottom:.1rem">Resultados</h1>
+        <div class="results-summary" id="results-summary"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btn-back-2">← Voltar</button>
+        <button class="btn btn-primary" id="btn-download">↓ Baixar CSV</button>
+      </div>
+    </div>
+
+    <!-- Overview: ranking of all combos -->
+    <div class="section-block">
+      <div class="section-label">Ranking de combinações</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Combinação</th>
+              <th class="r">N cod.</th>
+              <th class="r">α médio</th>
+              <th class="r">α mediano</th>
+              <th class="r">≥ 0.667</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detail for selected combo -->
+    <div class="section-block">
+      <div class="section-label">Detalhe por combinação</div>
+      <div class="detail-header">
+        <div class="detail-selector">
+          <label for="combo-select">Combinação:</label>
+          <select class="combo-select" id="combo-select"></select>
+        </div>
+        <div class="detail-chips" id="detail-chips"></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Variável</th>
+              <th class="r">% Positivo <sup title="ver nota ¹">¹</sup></th>
+              <th class="r">Concord. Bruta <sup title="ver nota ²">²</sup></th>
+              <th class="r">Alpha (Krippendorff) <sup title="ver nota ³">³</sup></th>
+              <th class="r">Brennan-Prediger <sup title="ver nota ⁴">⁴</sup></th>
+            </tr>
+          </thead>
+          <tbody id="detail-body"></tbody>
+        </table>
+      </div>
+      <div style="font-size:.75rem;color:var(--ink-muted);margin-top:.5rem" id="detail-notes"></div>
+
+      <details class="metric-guide">
+        <summary>Notas sobre as métricas</summary>
+        <div class="metric-guide-body">
+          <dl style="display:grid;gap:0.6rem">
+            <div class="metric-item">
+              <dt>¹ % Positivo</dt>
+              <dd>Para variáveis binárias, indica a proporção de itens classificados como positivos (TRUE, 1, Sim) em relação ao total de classificações válidas de todos os codificadores. Valores muito baixos (&lt; 15%) indicam <em>baixa prevalência</em>: como quase todos os itens são negativos, qualquer par de codificadores tende a concordar "por acaso" — o que distorce as medidas de chance. Para variáveis multinomiais ou numéricas, este campo não é calculado (—).</dd>
+            </div>
+            <div class="metric-item">
+              <dt>² Concordância Bruta</dt>
+              <dd>Percentual de unidades de análise (itens) em que <em>todos</em> os codificadores da combinação atribuíram exatamente o mesmo valor. Não leva em conta a probabilidade de concordância por acaso. É intuitiva e fácil de reportar, mas não deve ser a única métrica: dois codificadores que marcam "negativo" em 99% dos itens atingem alta concordância bruta sem qualquer acordo real sobre os casos positivos.</dd>
+            </div>
+            <div class="metric-item">
+              <dt>³ Alpha de Krippendorff</dt>
+              <dd>Mede a confiabilidade líquida de chance, estimando a probabilidade esperada de concordância a partir das <em>distribuições reais</em> dos dados (matriz de coincidência). Valor 1 = concordância perfeita; 0 = concordância igual ao acaso; valores negativos = pior que o acaso. Referência usual para publicações: α ≥ 0,667 (aceitável) e α ≥ 0,800 (bom). É sensível à prevalência: em variáveis com poucos positivos, pode ser artificialmente baixo mesmo com codificadores consistentes.</dd>
+            </div>
+            <div class="metric-item">
+              <dt>⁴ Brennan-Prediger</dt>
+              <dd>Variante que substitui a chance estimada por uma chance <em>fixa</em> de 1/k (onde k = número de categorias possíveis). Para variáveis binárias, assume que cada codificador concorda por acaso em 50% dos casos, independentemente de quantos positivos existem. Isso o torna mais robusto ao paradoxo da prevalência: quando % Positivo &lt; 15% e o alpha de Krippendorff é muito inferior ao B-P, o B-P é a medida mais informativa. Use os dois e justifique a escolha no texto.</dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Alpha de Krippendorff por variável · linha tracejada = 0.667</div>
+          <button class="chart-dl-btn" id="dl-png-kripp">↓ PNG</button>
+        </div>
+        <div id="chart-kripp-wrap" style="position:relative">
+          <canvas id="chart-kripp"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-header">
+          <div class="chart-title">Brennan-Prediger por variável · linha tracejada = 0.667</div>
+          <button class="chart-dl-btn" id="dl-png-bp">↓ PNG</button>
+        </div>
+        <div id="chart-bp-wrap" style="position:relative">
+          <canvas id="chart-bp"></canvas>
+        </div>
+      </div>
+
+      <details class="metric-guide" style="margin-top:1.2rem">
+        <summary>Quando usar Krippendorff vs. Brennan-Prediger?</summary>
+        <div class="metric-guide-body">
+          <p style="color:var(--ink-muted);line-height:1.5">O alpha de Krippendorff estima a chance esperada de concordância a partir das <em>distribuições reais</em> dos dados. Quando uma variável binária tem prevalência muito baixa (quase todos os itens são negativos), a maioria dos pares já concorda por acaso — e o alpha castiga isso, resultando em valores artificialmente baixos mesmo com codificadores consistentes. O Brennan-Prediger usa uma chance fixa de <em>1/k</em> (1/2 para binárias), independente de quantos positivos existem, e por isso é mais robusto nesses casos.</p>
+          <dl style="display:grid;gap:0.5rem">
+            <div class="metric-item">
+              <dt>Use Krippendorff quando…</dt>
+              <dd>a variável tem distribuição razoavelmente equilibrada entre as categorias (prevalência de cada categoria acima de ~15%). É a medida canônica na literatura de análise de conteúdo e a mais reconhecível em publicações.</dd>
+            </div>
+            <div class="metric-item">
+              <dt>Use Brennan-Prediger quando…</dt>
+              <dd>a variável é binária com prevalência muito baixa (⚠ abaixo de 15%) <em>e</em> o Krippendorff é muito inferior ao B-P. Nesse cenário, o B-P reflete melhor o acordo real entre codificadores. Reporte sempre os dois e justifique a escolha.</dd>
+            </div>
+          </dl>
+        </div>
+      </details>
+    </div>
+  </section>
+
+</div><!-- app-shell -->
+
+<footer class="app-footer">
+  <strong>KrippLAB</strong> — análise de confiabilidade entre codificadores · cálculos no seu próprio navegador, nenhum dado enviado a servidores<br>
+  Desenvolvido pelo grupo de pesquisa <strong>coLAB/UFF</strong>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   InterCoder — core logic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── State ──────────────────────────────────────────────────────────────── */
+const state = {
+  coders: [],     // [{name, cols: {colName: [values...]}}]
+  allCols: [],    // columns present in all coders
+  partCols: [],   // columns present in some coders: {col, missing:[coderNames]}
+  results: null,  // computed results
+  chartKripp: null,
+  chartBP: null,
+  selectedComboIdx: 0
+};
+
+/* ── Statistics ─────────────────────────────────────────────────────────── */
+
+function normalizeVal(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '' || s === 'NA' || s === 'N/A' || s === 'null' || s === 'NULL') return null;
+  return s;
+}
+
+function isTruthy(s) {
+  if (s === null) return false;
+  const u = s.toUpperCase();
+  return u === 'TRUE' || u === '1' || u === 'YES' || u === 'SIM';
+}
+
+function detectType(values) {
+  const nv = values.map(normalizeVal).filter(v => v !== null);
+  if (nv.length === 0) return 'vazio';
+  const unique = new Set(nv.map(s => s.toUpperCase()));
+  const boolSet = new Set(['TRUE','FALSE','0','1','YES','NO','SIM','NÃO','NAO']);
+  if ([...unique].every(u => boolSet.has(u))) return 'binária';
+  if (nv.every(v => !isNaN(Number(v)))) return 'numérica';
+  if (nv.some(v => v.length > 60)) return 'texto';
+  return 'categórica';
+}
+
+// Build coincidence matrix and return {coinc, values, n}
+function buildCoinc(matrix) {
+  const allVals = new Set();
+  matrix.forEach(col => col.forEach(v => { const n = normalizeVal(v); if (n !== null) allVals.add(n); }));
+  const values = [...allVals].sort();
+  if (values.length === 0) return null;
+
+  // coinc[i][j] = coincidence count between values[i] and values[j]
+  const k = values.length;
+  const idx = {};
+  values.forEach((v, i) => idx[v] = i);
+  const coinc = Array.from({length: k}, () => new Array(k).fill(0));
+
+  const nUnits = matrix[0].length;
+  for (let u = 0; u < nUnits; u++) {
+    const ratings = matrix.map(col => normalizeVal(col[u])).filter(v => v !== null);
+    const m = ratings.length;
+    if (m < 2) continue;
+    for (let i = 0; i < m; i++) {
+      for (let j = 0; j < m; j++) {
+        if (i !== j) coinc[idx[ratings[i]]][idx[ratings[j]]] += 1 / (m - 1);
+      }
+    }
+  }
+
+  let n = 0;
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) n += coinc[i][j];
+
+  return { coinc, values, n, k };
+}
+
+function krippalpha(matrix) {
+  const c = buildCoinc(matrix);
+  if (!c) return null;
+  const { coinc, values, n, k } = c;
+  if (n < 2) return null;
+  if (k === 1) return 1.0;
+
+  const marginals = new Array(k).fill(0);
+  for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) marginals[i] += coinc[i][j];
+
+  let D_o = 0, D_e = 0;
+  for (let i = 0; i < k; i++) {
+    for (let j = 0; j < k; j++) {
+      if (i !== j) {
+        D_o += coinc[i][j];
+        D_e += marginals[i] * marginals[j];
+      }
+    }
+  }
+  D_o /= n;
+  D_e /= n * (n - 1);
+
+  if (D_e === 0) return D_o === 0 ? 1.0 : null;
+  return 1 - D_o / D_e;
+}
+
+function brennanPrediger(matrix) {
+  const nUnits = matrix[0].length;
+  const allVals = new Set();
+  matrix.forEach(col => col.forEach(v => { const n = normalizeVal(v); if (n !== null) allVals.add(n); }));
+  const k = allVals.size;
+  if (k === 0) return null;
+  if (k === 1) return 1.0;
+
+  let totalPairs = 0, agreePairs = 0;
+  for (let u = 0; u < nUnits; u++) {
+    const ratings = matrix.map(col => normalizeVal(col[u])).filter(v => v !== null);
+    const m = ratings.length;
+    if (m < 2) continue;
+    for (let i = 0; i < m; i++) {
+      for (let j = i + 1; j < m; j++) {
+        totalPairs++;
+        if (ratings[i] === ratings[j]) agreePairs++;
+      }
+    }
+  }
+  if (totalPairs === 0) return null;
+  const p_o = agreePairs / totalPairs;
+  const p_e = 1 / k;
+  return (p_o - p_e) / (1 - p_e);
+}
+
+function rawAgreement(matrix) {
+  const nUnits = matrix[0].length;
+  let agree = 0, valid = 0;
+  for (let u = 0; u < nUnits; u++) {
+    const ratings = matrix.map(col => normalizeVal(col[u])).filter(v => v !== null);
+    if (ratings.length < 2) continue;
+    valid++;
+    if (new Set(ratings).size === 1) agree++;
+  }
+  return valid === 0 ? null : (agree / valid) * 100;
+}
+
+function prevalence(matrix) {
+  let total = 0, pos = 0;
+  matrix.forEach(col => col.forEach(v => {
+    const n = normalizeVal(v);
+    if (n === null) return;
+    total++;
+    if (isTruthy(n)) pos++;
+  }));
+  return total === 0 ? null : (pos / total) * 100;
+}
+
+/* ── Combinations ───────────────────────────────────────────────────────── */
+function combn(arr, k) {
+  if (k > arr.length) return [];
+  if (k === 0) return [[]];
+  if (k === arr.length) return [arr.slice()];
+  const [first, ...rest] = arr;
+  const withFirst = combn(rest, k - 1).map(c => [first, ...c]);
+  const withoutFirst = combn(rest, k);
+  return [...withFirst, ...withoutFirst];
+}
+
+function allCombinations(arr) {
+  const result = [];
+  for (let k = 2; k <= arr.length; k++) {
+    combn(arr, k).forEach(c => result.push(c));
+  }
+  return result;
+}
+
+function countCombinations(n) {
+  let total = 0;
+  for (let k = 2; k <= n; k++) {
+    let c = 1;
+    for (let i = 0; i < k; i++) c *= (n - i);
+    for (let i = 1; i <= k; i++) c /= i;
+    total += c;
+  }
+  return total;
+}
+
+/* ── Main computation ───────────────────────────────────────────────────── */
+function computeResults(selectedCoderNames, selectedVars) {
+  const combos = allCombinations(selectedCoderNames);
+  const results = [];
+
+  for (const combo of combos) {
+    const label = combo.join(' + ');
+    const varStats = [];
+
+    for (const varName of selectedVars) {
+      // Coders in this combo that have this variable
+      const availCoders = combo.filter(name => {
+        const coder = state.coders.find(c => c.name === name);
+        return coder && varName in coder.cols;
+      });
+      if (availCoders.length < 2) {
+        varStats.push({ name: varName, alpha: null, bp: null, rawAgree: null, prev: null, missing: combo.filter(n => !availCoders.includes(n)) });
+        continue;
+      }
+
+      const matrix = availCoders.map(name => {
+        const coder = state.coders.find(c => c.name === name);
+        return coder.cols[varName];
+      });
+
+      const missing = combo.filter(n => !availCoders.includes(n));
+      varStats.push({
+        name: varName,
+        alpha: krippalpha(matrix),
+        bp: brennanPrediger(matrix),
+        rawAgree: rawAgreement(matrix),
+        prev: prevalence(matrix),
+        missing
+      });
+    }
+
+    // Sort by alpha desc
+    varStats.sort((a, b) => {
+      if (a.alpha === null && b.alpha === null) return 0;
+      if (a.alpha === null) return 1;
+      if (b.alpha === null) return -1;
+      return b.alpha - a.alpha;
+    });
+
+    const validAlphas = varStats.map(v => v.alpha).filter(a => a !== null && !isNaN(a));
+    const alphaMean   = validAlphas.length ? validAlphas.reduce((s,v) => s+v, 0) / validAlphas.length : null;
+    const sortedA     = [...validAlphas].sort((a,b) => a-b);
+    const alphaMedian = sortedA.length ? (sortedA.length % 2 === 0 ? (sortedA[sortedA.length/2-1]+sortedA[sortedA.length/2])/2 : sortedA[Math.floor(sortedA.length/2)]) : null;
+    const above667    = validAlphas.filter(a => a >= 0.667).length;
+
+    results.push({ combo, label, nCoders: combo.length, alphaMean, alphaMedian, above667, nVars: validAlphas.length, vars: varStats });
+  }
+
+  // Sort by alphaMean desc
+  results.sort((a, b) => {
+    if (a.alphaMean === null && b.alphaMean === null) return 0;
+    if (a.alphaMean === null) return 1;
+    if (b.alphaMean === null) return -1;
+    return b.alphaMean - a.alphaMean;
+  });
+
+  return results;
+}
+
+/* ── UI helpers ─────────────────────────────────────────────────────────── */
+function fmt(v, decimals = 3) {
+  if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '—';
+  return v.toFixed(decimals);
+}
+function fmtPct(v) {
+  if (v === null || v === undefined) return '—';
+  return v.toFixed(1) + '%';
+}
+
+function alphaClass(a) {
+  if (a === null || isNaN(a)) return 'pill-n';
+  if (a >= 0.667) return 'pill-h';
+  if (a >= 0.40)  return 'pill-m';
+  return 'pill-l';
+}
+function alphaColor(a) {
+  if (a === null || isNaN(a)) return getComputedStyle(document.documentElement).getPropertyValue('--c-n').trim();
+  if (a >= 0.667) return getComputedStyle(document.documentElement).getPropertyValue('--c-h').trim();
+  if (a >= 0.40)  return getComputedStyle(document.documentElement).getPropertyValue('--c-m').trim();
+  return getComputedStyle(document.documentElement).getPropertyValue('--c-l').trim();
+}
+
+function badgeHtml(type) {
+  const map = { 'binária':'badge-bin','numérica':'badge-num','categórica':'badge-cat','texto':'badge-txt','vazio':'badge-txt' };
+  return `<span class="badge ${map[type]||'badge-txt'}">${type}</span>`;
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.toggle('visible', !!msg);
+}
+
+/* ── Step navigation ────────────────────────────────────────────────────── */
+function goStep(n) {
+  document.querySelectorAll('.step-section').forEach((s, i) => {
+    s.classList.toggle('active', i + 1 === n);
+  });
+  // Update stepper dots
+  [1, 2, 3].forEach(i => {
+    const dot = document.getElementById(`s-dot-${i}`);
+    dot.classList.toggle('active', i === n);
+    dot.classList.toggle('done', i < n);
+    if (i < n) dot.querySelector('.step-dot').textContent = '✓';
+    else if (i === n) dot.querySelector('.step-dot').textContent = i;
+    else dot.querySelector('.step-dot').textContent = i;
+  });
+  [1, 2].forEach(i => {
+    document.getElementById(`s-line-${i}`).classList.toggle('done', i < n);
+  });
+  window.scrollTo(0, 0);
+}
+
+/* ── Step 1 — Upload logic ──────────────────────────────────────────────── */
+function renderFileCards() {
+  const container = document.getElementById('file-cards');
+  container.innerHTML = state.coders.map((c, i) => `
+    <div class="file-card">
+      <span class="file-card-icon">📄</span>
+      <span class="file-card-name" title="${c.fileName}">${c.fileName}</span>
+      <span class="coder-label">Codificador:</span>
+      <input class="coder-input" type="text" value="${c.name}" data-idx="${i}" placeholder="Nome do codificador">
+      <button class="remove-btn" data-remove="${i}" title="Remover">✕</button>
+    </div>
+  `).join('');
+
+  // Events on cards
+  container.querySelectorAll('.coder-input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      state.coders[+e.target.dataset.idx].name = e.target.value.trim();
+      updateUploadBtn();
+    });
+  });
+  container.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.coders.splice(+e.target.dataset.remove, 1);
+      renderFileCards();
+      updateUploadBtn();
+    });
+  });
+}
+
+function updateUploadBtn() {
+  const count = state.coders.length;
+  const valid = count >= 2 && state.coders.every(c => c.name.length > 0);
+  document.getElementById('btn-continue-1').disabled = !valid;
+  document.getElementById('upload-count').textContent = count > 0 ? `${count} arquivo(s) carregado(s)` : '';
+  showError('error-upload', '');
+}
+
+async function loadCSV(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false,
+      encoding: 'UTF-8',
+      complete: res => resolve(res),
+      error: err => reject(err)
+    });
+  });
+}
+
+async function addFiles(files) {
+  const existingNames = new Set(state.coders.map(c => c.fileName));
+  for (const file of files) {
+    if (!file.name.toLowerCase().endsWith('.csv')) continue;
+    if (existingNames.has(file.name)) continue;
+    try {
+      const res = await loadCSV(file);
+      if (!res.data || res.data.length === 0) continue;
+      const cols = {};
+      res.meta.fields.forEach(f => {
+        cols[f] = res.data.map(row => row[f] ?? null);
+      });
+      const suggestedName = file.name.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').trim();
+      state.coders.push({ fileName: file.name, name: suggestedName, cols });
+      existingNames.add(file.name);
+    } catch(e) {
+      showError('error-upload', `Erro ao ler ${file.name}: ${e.message}`);
+    }
+  }
+  renderFileCards();
+  updateUploadBtn();
+}
+
+/* ── Step 2 — Config logic ──────────────────────────────────────────────── */
+function buildColumnInfo() {
+  const colSets = state.coders.map(c => new Set(Object.keys(c.cols)));
+  const intersection = [...colSets[0]].filter(col => colSets.every(s => s.has(col)));
+  const union = new Set(colSets.flatMap(s => [...s]));
+
+  // Partial columns: in union but not intersection
+  const partialCols = {};
+  [...union].forEach(col => {
+    if (!intersection.includes(col)) {
+      const missing = state.coders.filter(c => !c.cols[col]).map(c => c.name);
+      partialCols[col] = missing;
+    }
+  });
+
+  state.allCols = intersection;
+  state.partCols = partialCols;
+}
+
+function renderStep2() {
+  buildColumnInfo();
+
+  // Variables panel
+  const varList = document.getElementById('var-list');
+  const allVarCols = [...state.allCols, ...Object.keys(state.partCols)];
+
+  // Detect type from all coders that have the column
+  function colType(col) {
+    const vals = state.coders.flatMap(c => c.cols[col] ? c.cols[col] : []);
+    return detectType(vals);
+  }
+
+  const typeOrder = { 'binária': 0, 'numérica': 1, 'categórica': 2, 'texto': 3, 'vazio': 4 };
+  allVarCols.sort((a, b) => (typeOrder[colType(a)] ?? 9) - (typeOrder[colType(b)] ?? 9));
+
+  varList.innerHTML = allVarCols.map(col => {
+    const type = colType(col);
+    const isPartial = col in state.partCols;
+    const checked = (type !== 'texto' && type !== 'vazio') ? 'checked' : '';
+    const warnHtml = isPartial
+      ? `<span class="badge badge-warn" title="Ausente em: ${state.partCols[col].join(', ')}">parcial</span>`
+      : '';
+    return `<label class="check-row">
+      <input type="checkbox" name="var" value="${col}" ${checked}>
+      <span class="check-label${type === 'texto' || type === 'vazio' ? ' muted' : ''}" title="${col}">${col}</span>
+      ${badgeHtml(type)} ${warnHtml}
+    </label>`;
+  }).join('');
+
+  // Coders panel
+  const coderList = document.getElementById('coder-list');
+  coderList.innerHTML = state.coders.map(c => `
+    <label class="check-row">
+      <input type="checkbox" name="coder" value="${c.name}" checked>
+      <span class="check-label">${c.name}</span>
+    </label>
+  `).join('');
+
+  updateComboCount();
+  coderList.querySelectorAll('input').forEach(inp => inp.addEventListener('change', updateComboCount));
+}
+
+function updateComboCount() {
+  const n = document.querySelectorAll('#coder-list input:checked').length;
+  const total = n >= 2 ? countCombinations(n) : 0;
+  document.getElementById('combo-count').innerHTML = n >= 2
+    ? `<strong>${total}</strong> combinação(ões) serão testadas`
+    : 'Selecione ao menos 2 codificadores';
+}
+
+/* ── Step 3 — Results rendering ─────────────────────────────────────────── */
+function renderResults() {
+  const res = state.results;
+  if (!res || res.length === 0) return;
+
+  // Summary line
+  const best = res[0];
+  document.getElementById('results-summary').innerHTML =
+    `<strong>${res.length}</strong> combinações testadas · Melhor: <strong>${best.label}</strong> (α médio ${fmt(best.alphaMean)})`;
+
+  // Ranking table
+  const tbody = document.getElementById('ranking-body');
+  tbody.innerHTML = res.map((r, i) => `
+    <tr class="row-clickable ${i === state.selectedComboIdx ? 'row-selected' : ''}" data-idx="${i}">
+      <td style="color:var(--ink-muted);font-size:.75rem">${i+1}</td>
+      <td class="mono">${r.label}</td>
+      <td class="r" style="color:var(--ink-muted)">${r.nCoders}</td>
+      <td class="r"><span class="alpha-pill ${alphaClass(r.alphaMean)}">${fmt(r.alphaMean)}</span></td>
+      <td class="r" style="color:var(--ink-mid)">${fmt(r.alphaMedian)}</td>
+      <td class="r" style="color:var(--ink-mid)">${r.nVars > 0 ? r.above667+'/'+r.nVars : '—'}</td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      state.selectedComboIdx = +tr.dataset.idx;
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('row-selected'));
+      tr.classList.add('row-selected');
+      document.getElementById('combo-select').value = state.selectedComboIdx;
+      renderDetail(state.selectedComboIdx);
+      document.getElementById('combo-select').scrollIntoView({behavior:'smooth', block:'nearest'});
+    });
+  });
+
+  // Combo select dropdown
+  const sel = document.getElementById('combo-select');
+  const grouped = {};
+  res.forEach((r, i) => {
+    const g = `${r.nCoders} codificador${r.nCoders > 1 ? 'es' : ''}`;
+    if (!grouped[g]) grouped[g] = [];
+    grouped[g].push({ label: r.label, idx: i });
+  });
+  sel.innerHTML = Object.entries(grouped).map(([g, items]) =>
+    `<optgroup label="${g}">${items.map(it => `<option value="${it.idx}">${it.label} (α ${fmt(res[it.idx].alphaMean)})</option>`).join('')}</optgroup>`
+  ).join('');
+  sel.value = state.selectedComboIdx;
+  sel.addEventListener('change', () => {
+    state.selectedComboIdx = +sel.value;
+    renderDetail(state.selectedComboIdx);
+  });
+
+  renderDetail(state.selectedComboIdx);
+}
+
+function renderDetail(idx) {
+  const combo = state.results[idx];
+  if (!combo) return;
+
+  // Summary chips
+  const best = combo.vars.find(v => v.alpha !== null);
+  const worst = [...combo.vars].reverse().find(v => v.alpha !== null);
+  document.getElementById('detail-chips').innerHTML = [
+    `<div class="chip">α médio <strong>${fmt(combo.alphaMean)}</strong></div>`,
+    `<div class="chip">α mediano <strong>${fmt(combo.alphaMedian)}</strong></div>`,
+    `<div class="chip">≥ 0.667 <strong>${combo.above667}/${combo.nVars}</strong></div>`,
+    best  ? `<div class="chip">Melhor: <strong>${best.name}</strong> (${fmt(best.alpha)})</div>` : '',
+    worst && worst !== best ? `<div class="chip">Pior: <strong>${worst.name}</strong> (${fmt(worst.alpha)})</div>` : '',
+  ].join('');
+
+  // Detail table
+  const notes = new Set();
+  const tbody = document.getElementById('detail-body');
+  tbody.innerHTML = combo.vars.map(v => {
+    const prevNote = (v.prev !== null && v.prev < 15 && v.alpha !== null)
+      ? `<span class="prev-note" title="Prevalência baixa: alpha pode estar subestimado">⚠ ${fmtPct(v.prev)}</span>`
+      : '';
+    const missingNote = v.missing && v.missing.length > 0
+      ? (notes.add(`* ${v.name}: ausente em ${v.missing.join(', ')} — excluído(s) deste cálculo`), ' *')
+      : '';
+    const prevStr = (v.prev !== null && !(v.prev < 15)) ? fmtPct(v.prev) : (v.prev !== null ? '' : '—');
+    return `<tr>
+      <td class="mono">${v.name}${missingNote}</td>
+      <td class="r">${prevNote || prevStr}</td>
+      <td class="r">${fmtPct(v.rawAgree)}</td>
+      <td class="r"><span class="alpha-pill ${alphaClass(v.alpha)}">${fmt(v.alpha)}</span></td>
+      <td class="r"><span class="alpha-pill ${alphaClass(v.bp)}">${fmt(v.bp)}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('detail-notes').innerHTML = [...notes].map(n => `<div>${n}</div>`).join('') +
+    (combo.vars.some(v => v.prev !== null && v.prev < 15)
+      ? '<div>⚠ Prevalência baixa (&lt; 15%): alpha de Krippendorff pode estar subestimado. Considere o Brennan-Prediger como medida alternativa.</div>'
+      : '');
+
+  renderCharts(combo);
+}
+
+/* ── Chart ───────────────────────────────────────────────────────────────── */
+const thresholdLinePlugin = {
+  id: 'thresholdLine',
+  afterDraw(chart) {
+    const { ctx, chartArea, scales } = chart;
+    if (!scales.x) return;
+    const x = scales.x.getPixelForValue(0.667);
+    if (x < chartArea.left || x > chartArea.right) return;
+    ctx.save();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--c-h').trim() || '#1A7A52';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+function makeChartOptions(data, tooltipLabel, isDark) {
+  const gridColor  = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+  const labelColor = isDark ? '#9BA5BC' : '#4A5266';
+  const validData  = data.filter(v => v !== null && !isNaN(v));
+  const minVal     = validData.length ? Math.min(...validData) : 0;
+  return {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: tooltipLabel } }
+    },
+    scales: {
+      x: {
+        min: Math.min(-0.1, Math.floor(minVal * 10) / 10),
+        max: 1.05,
+        grid: { color: gridColor },
+        ticks: { color: labelColor, font: { size: 11 }, callback: v => v.toFixed(2) }
+      },
+      y: {
+        grid: { display: false },
+        ticks: { color: labelColor, font: { size: 11, family: "'SF Mono','Cascadia Code','Courier New',monospace" }, autoSkip: false }
+      }
+    }
+  };
+}
+
+function renderCharts(combo) {
+  if (state.chartKripp) { state.chartKripp.destroy(); state.chartKripp = null; }
+  if (state.chartBP)    { state.chartBP.destroy();    state.chartBP    = null; }
+
+  const isDark = document.documentElement.dataset.theme === 'dark' ||
+    (!document.documentElement.dataset.theme && window.matchMedia('(prefers-color-scheme:dark)').matches);
+
+  // Krippendorff chart
+  const krippVars = combo.vars.filter(v => v.alpha !== null);
+  const krippLabels = krippVars.map(v => v.name.length > 28 ? v.name.slice(0, 26) + '…' : v.name);
+  const krippData   = krippVars.map(v => v.alpha);
+  const krippColors = krippData.map(a => alphaColor(a));
+
+  const cvK = document.getElementById('chart-kripp');
+  document.getElementById('chart-kripp-wrap').style.height = Math.max(180, krippVars.length * 20) + 'px';
+  state.chartKripp = new Chart(cvK, {
+    type: 'bar',
+    plugins: [thresholdLinePlugin],
+    data: { labels: krippLabels, datasets: [{ data: krippData, backgroundColor: krippColors, borderWidth: 0, borderRadius: 2, maxBarThickness: 14 }] },
+    options: makeChartOptions(krippData, ctx => ` α = ${ctx.parsed.x !== null ? ctx.parsed.x.toFixed(3) : '—'}`, isDark)
+  });
+
+  // Brennan-Prediger chart
+  const bpVars = combo.vars.filter(v => v.bp !== null);
+  const bpLabels = bpVars.map(v => v.name.length > 28 ? v.name.slice(0, 26) + '…' : v.name);
+  const bpData   = bpVars.map(v => v.bp);
+  const bpColors = bpData.map(a => alphaColor(a));
+
+  const cvBP = document.getElementById('chart-bp');
+  document.getElementById('chart-bp-wrap').style.height = Math.max(180, bpVars.length * 20) + 'px';
+  state.chartBP = new Chart(cvBP, {
+    type: 'bar',
+    plugins: [thresholdLinePlugin],
+    data: { labels: bpLabels, datasets: [{ data: bpData, backgroundColor: bpColors, borderWidth: 0, borderRadius: 2, maxBarThickness: 14 }] },
+    options: makeChartOptions(bpData, ctx => ` B-P = ${ctx.parsed.x !== null ? ctx.parsed.x.toFixed(3) : '—'}`, isDark)
+  });
+}
+
+function downloadChartPNG(chart, filename) {
+  if (!chart) return;
+  const a = document.createElement('a');
+  a.href = chart.canvas.toDataURL('image/png');
+  a.download = filename;
+  a.click();
+}
+
+/* ── CSV Export ─────────────────────────────────────────────────────────── */
+function downloadCSV() {
+  if (!state.results) return;
+  const rows = [['Combinacao','N_Codificadores','Variavel','Pct_Positivo','Concordancia_Bruta','Alpha_Krippendorff','Brennan_Prediger']];
+  state.results.forEach(r => {
+    r.vars.forEach(v => {
+      rows.push([
+        r.label, r.nCoders, v.name,
+        v.prev   !== null ? v.prev.toFixed(1)     : '',
+        v.rawAgree !== null ? v.rawAgree.toFixed(1) : '',
+        v.alpha  !== null ? v.alpha.toFixed(4)    : '',
+        v.bp     !== null ? v.bp.toFixed(4)       : ''
+      ]);
+    });
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kripplab_resultados.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ── Theme toggle ───────────────────────────────────────────────────────── */
+function initTheme() {
+  const btn = document.getElementById('theme-btn');
+  function apply(theme) {
+    document.documentElement.dataset.theme = theme;
+    btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (state.chartKripp || state.chartBP) { renderDetail(state.selectedComboIdx); } // recolor charts
+  }
+  const stored = localStorage.getItem('ic-theme');
+  if (stored) apply(stored);
+  else {
+    const sys = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+    apply(sys);
+  }
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('ic-theme', next);
+    apply(next);
+  });
+}
+
+/* ── Event wiring ───────────────────────────────────────────────────────── */
+function init() {
+  initTheme();
+
+  // Dropzone
+  const dz = document.getElementById('dropzone');
+  const fi = document.getElementById('file-input');
+
+  dz.addEventListener('click', () => fi.click());
+  dz.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fi.click(); });
+
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    addFiles([...e.dataTransfer.files]);
+  });
+  fi.addEventListener('change', () => { addFiles([...fi.files]); fi.value = ''; });
+
+  // Step 1 → 2
+  document.getElementById('btn-continue-1').addEventListener('click', () => {
+    const names = state.coders.map(c => c.name);
+    const unique = new Set(names);
+    if (unique.size < names.length) {
+      showError('error-upload', 'Dois ou mais codificadores têm o mesmo nome. Por favor, use nomes únicos.');
+      return;
+    }
+    renderStep2();
+    goStep(2);
+  });
+
+  // Step 2 select all/none
+  document.getElementById('sel-all-vars').addEventListener('click', () => {
+    document.querySelectorAll('#var-list input').forEach(i => i.checked = true);
+  });
+  document.getElementById('sel-none-vars').addEventListener('click', () => {
+    document.querySelectorAll('#var-list input').forEach(i => i.checked = false);
+  });
+
+  // Back buttons
+  document.getElementById('btn-back-1').addEventListener('click', () => goStep(1));
+  document.getElementById('btn-back-2').addEventListener('click', () => {
+    if (state.chartKripp) { state.chartKripp.destroy(); state.chartKripp = null; }
+    if (state.chartBP)    { state.chartBP.destroy();    state.chartBP    = null; }
+    goStep(2);
+  });
+
+  // Compute
+  document.getElementById('btn-compute').addEventListener('click', async () => {
+    const selectedVars = [...document.querySelectorAll('#var-list input:checked')].map(i => i.value);
+    const selectedCoders = [...document.querySelectorAll('#coder-list input:checked')].map(i => i.value);
+
+    if (selectedVars.length === 0) { showError('error-config', 'Selecione ao menos uma variável.'); return; }
+    if (selectedCoders.length < 2) { showError('error-config', 'Selecione ao menos 2 codificadores.'); return; }
+    showError('error-config', '');
+
+    document.getElementById('btn-compute').disabled = true;
+    document.getElementById('computing-msg').classList.add('visible');
+
+    // Yield to browser so spinner renders before heavy computation
+    await new Promise(r => setTimeout(r, 30));
+
+    try {
+      state.results = computeResults(selectedCoders, selectedVars);
+      state.selectedComboIdx = 0;
+      goStep(3);
+      renderResults();
+    } catch(e) {
+      showError('error-config', 'Erro ao calcular: ' + e.message);
+    } finally {
+      document.getElementById('btn-compute').disabled = false;
+      document.getElementById('computing-msg').classList.remove('visible');
+    }
+  });
+
+  // Download CSV
+  document.getElementById('btn-download').addEventListener('click', downloadCSV);
+
+  // Download charts as PNG
+  document.getElementById('dl-png-kripp').addEventListener('click', () => {
+    const combo = state.results?.[state.selectedComboIdx];
+    const label = combo ? combo.label.replace(/\s+/g, '_') : 'combo';
+    downloadChartPNG(state.chartKripp, `kripplab_krippendorff_${label}.png`);
+  });
+  document.getElementById('dl-png-bp').addEventListener('click', () => {
+    const combo = state.results?.[state.selectedComboIdx];
+    const label = combo ? combo.label.replace(/\s+/g, '_') : 'combo';
+    downloadChartPNG(state.chartBP, `kripplab_brennan_prediger_${label}.png`);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
