@@ -716,6 +716,9 @@
         <div class="detail-selector">
           <label for="combo-select">Combinação:</label>
           <select class="combo-select" id="combo-select"></select>
+          <div style="flex:1"></div>
+          <button class="chart-dl-btn" id="dl-detail-csv">↓ CSV</button>
+          <button class="chart-dl-btn" id="dl-detail-png">↓ PNG</button>
         </div>
         <div class="detail-chips" id="detail-chips"></div>
       </div>
@@ -1460,6 +1463,176 @@ function downloadCSV() {
   URL.revokeObjectURL(a.href);
 }
 
+/* ── Detail table CSV export ────────────────────────────────────────────── */
+function downloadDetailCSV(combo) {
+  if (!combo) return;
+  const rows = [['Variavel','Pct_Positivo','Concordancia_Bruta','Alpha_Krippendorff','Brennan_Prediger']];
+  combo.vars.forEach(v => {
+    rows.push([
+      v.name,
+      v.prev      !== null ? v.prev.toFixed(1)      : '',
+      v.rawAgree  !== null ? v.rawAgree.toFixed(1)  : '',
+      v.alpha     !== null ? v.alpha.toFixed(4)     : '',
+      v.bp        !== null ? v.bp.toFixed(4)        : ''
+    ]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kripplab_${combo.label.replace(/[^a-zA-Z0-9]/g,'_')}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ── Detail table PNG export ────────────────────────────────────────────── */
+function downloadDetailPNG(combo) {
+  if (!combo) return;
+  const vars = combo.vars;
+
+  // Layout
+  const SCALE  = 2;
+  const PAD    = 20;
+  const TITLE_H = 40;
+  const HEAD_H  = 36;
+  const ROW_H   = 28;
+  const COL_W   = [248, 96, 108, 108, 126];  // px (logical)
+  const INNER_W = COL_W.reduce((s, w) => s + w, 0);
+  const TOTAL_W = INNER_W + PAD * 2;
+  const TOTAL_H = TITLE_H + HEAD_H + vars.length * ROW_H + PAD;
+
+  const canvas  = document.createElement('canvas');
+  canvas.width  = TOTAL_W * SCALE;
+  canvas.height = TOTAL_H * SCALE;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(SCALE, SCALE);
+
+  // Palette (always light-mode for the export)
+  const C = {
+    bg: '#FFFFFF', stripe: '#F4F6FB', border: '#D6D9E6',
+    ink: '#1A1F2E', inkMid: '#4A5266', inkMuted: '#7A8299',
+    accent: '#1A6B63', accentFg: '#FFFFFF',
+    high: '#1A7A52', highBg: '#E6F4ED',
+    mid:  '#A0681E', midBg:  '#FBF0DC',
+    low:  '#B03535', lowBg:  '#FAEAEA',
+    na:   '#7A8299', naBg:   '#EDEEF3'
+  };
+
+  function colX(i) { let x = PAD; for (let j = 0; j < i; j++) x += COL_W[j]; return x; }
+  function pillColors(a) {
+    if (a === null || isNaN(a)) return { fg: C.na, bg: C.naBg };
+    if (a >= 0.667) return { fg: C.high, bg: C.highBg };
+    if (a >= 0.40)  return { fg: C.mid,  bg: C.midBg  };
+    return { fg: C.low, bg: C.lowBg };
+  }
+  function roundRect(x, y, w, h, r) {
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+    else {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y, x + w, y + r, r); ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x, y + h, x, y + h - r, r); ctx.lineTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
+    }
+  }
+
+  // Background
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, TOTAL_W, TOTAL_H);
+
+  // Title
+  ctx.fillStyle = C.ink;
+  ctx.font = 'bold 13px system-ui,sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(combo.label, PAD, 17);
+  ctx.fillStyle = C.inkMuted;
+  ctx.font = '11px system-ui,sans-serif';
+  ctx.fillText('KrippLAB · kripplab.ombudsmanviktor.me', PAD, 33);
+
+  // Column headers
+  let y = TITLE_H;
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(PAD, y, INNER_W, HEAD_H);
+
+  const HEADS = ['VARIÁVEL', '% POSITIVO', 'CONCORD. BRUTA', 'ALPHA (KRIPP.)', 'BRENNAN-PREDIGER'];
+  ctx.fillStyle = C.accentFg;
+  ctx.font = 'bold 9.5px system-ui,sans-serif';
+  HEADS.forEach((h, i) => {
+    if (i === 0) {
+      ctx.textAlign = 'left';
+      ctx.fillText(h, colX(i) + 8, y + HEAD_H / 2 + 3.5);
+    } else {
+      ctx.textAlign = 'right';
+      ctx.fillText(h, colX(i) + COL_W[i] - 8, y + HEAD_H / 2 + 3.5);
+    }
+  });
+
+  // Rows
+  y += HEAD_H;
+  vars.forEach((v, ri) => {
+    ctx.fillStyle = ri % 2 === 0 ? C.bg : C.stripe;
+    ctx.fillRect(PAD, y, INNER_W, ROW_H);
+
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y + ROW_H);
+    ctx.lineTo(PAD + INNER_W, y + ROW_H);
+    ctx.stroke();
+
+    const midY = y + ROW_H / 2 + 4;
+
+    // Variable name (monospace)
+    ctx.fillStyle = C.ink;
+    ctx.font = '10.5px "Courier New",monospace';
+    ctx.textAlign = 'left';
+    const label = v.name.length > 34 ? v.name.slice(0, 32) + '…' : v.name;
+    ctx.fillText(label, colX(0) + 8, midY);
+
+    // % Positivo
+    ctx.font = '11px system-ui,sans-serif';
+    ctx.textAlign = 'right';
+    if (v.prev !== null) {
+      const lowPrev = v.prev < 15;
+      ctx.fillStyle = lowPrev ? C.mid : C.inkMid;
+      ctx.fillText((lowPrev ? '⚠ ' : '') + fmtPct(v.prev), colX(1) + COL_W[1] - 8, midY);
+    } else {
+      ctx.fillStyle = C.inkMuted;
+      ctx.fillText('—', colX(1) + COL_W[1] - 8, midY);
+    }
+
+    // Concordância Bruta
+    ctx.fillStyle = C.inkMid;
+    ctx.fillText(fmtPct(v.rawAgree), colX(2) + COL_W[2] - 8, midY);
+
+    // Alpha pill
+    const PILL_W = 50, PILL_H = ROW_H - 10;
+    function drawPill(colIdx, val) {
+      const pc = pillColors(val);
+      const px = colX(colIdx) + COL_W[colIdx] - 8 - PILL_W;
+      const py = y + 5;
+      ctx.fillStyle = pc.bg;
+      roundRect(px, py, PILL_W, PILL_H, 4);
+      ctx.fill();
+      ctx.fillStyle = pc.fg;
+      ctx.font = 'bold 10px system-ui,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(fmt(val), px + PILL_W / 2, py + PILL_H / 2 + 3.5);
+    }
+    drawPill(3, v.alpha);
+    drawPill(4, v.bp);
+
+    y += ROW_H;
+  });
+
+  // Download
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `kripplab_tabela_${combo.label.replace(/[^a-zA-Z0-9]/g,'_')}.png`;
+  a.click();
+}
+
 /* ── Theme toggle ───────────────────────────────────────────────────────── */
 function initTheme() {
   const btn = document.getElementById('theme-btn');
@@ -1570,6 +1743,13 @@ function init() {
     const combo = state.results?.[state.selectedComboIdx];
     const label = combo ? combo.label.replace(/\s+/g, '_') : 'combo';
     downloadChartPNG(state.chartBP, `kripplab_brennan_prediger_${label}.png`);
+  });
+
+  document.getElementById('dl-detail-csv').addEventListener('click', () => {
+    downloadDetailCSV(state.results?.[state.selectedComboIdx]);
+  });
+  document.getElementById('dl-detail-png').addEventListener('click', () => {
+    downloadDetailPNG(state.results?.[state.selectedComboIdx]);
   });
 }
 
